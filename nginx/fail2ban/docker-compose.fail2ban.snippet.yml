@@ -1,0 +1,61 @@
+# fail2ban/docker-compose.fail2ban.snippet.yml
+#
+# Referenced by jail.d/nginx-auth-alert.local's comment ("see docker-compose
+# snippet ... for how this gets mounted from the nginx container") but never
+# actually included in that upload -- this is the missing piece. Merge this
+# service definition into your real docker-compose.prod.yml (or whichever
+# compose file runs the nginx container) rather than using this file
+# standalone; it can't run on its own without the rest of your compose stack
+# (the `hitl-net` network name below is a guess -- match it to whatever
+# network your nginx service is actually on).
+#
+# fail2ban needs to both READ nginx's access.log (read-only bind mount) and
+# manipulate the HOST's firewall rules to actually ban IPs -- that's why it
+# needs NET_ADMIN + NET_RAW capabilities and host network mode, unlike every
+# other service in this stack. It is NOT sandboxed the way your other
+# containers are; that's inherent to what fail2ban does, not a mistake here.
+#
+# ALERTING METHOD: this ships with fail2ban's built-in %(action_mwl)s
+# (ban + EMAIL with matched log lines + whois), configured via
+# jail.local/jail.local.snippet. That satisfies "alerting on 401/429 spikes"
+# via email specifically -- it is NOT a Slack/Discord webhook. If you want
+# Slack/Discord instead of (or in addition to) email, you need a custom
+# fail2ban action script (a small shell script fail2ban calls with `curl`
+# against your webhook URL) -- ask if you want that written; it's a small
+# addition but genuinely separate from what's here.
+
+services:
+  fail2ban:
+    image: crazymax/fail2ban:latest
+    container_name: bondqi-fail2ban
+    restart: unless-stopped
+    network_mode: host   # required for fail2ban to manipulate host firewall rules
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      - TZ=UTC
+      - F2B_LOG_LEVEL=INFO
+      # F2B_DB_PURGE_AGE controls how long ban history is kept in fail2ban's
+      # own sqlite db -- default is fine, override only if you have a reason.
+    volumes:
+      # Read-only: fail2ban only ever needs to READ nginx's access.log to
+      # match against filter.d/nginx-auth.conf -- it never writes to it.
+      - nginx_logs:/var/log/nginx:ro
+      - ./fail2ban/filter.d:/data/filter.d:ro
+      - ./fail2ban/jail.d:/data/jail.d:ro
+      # jail.local (the [DEFAULT] mail settings) is NOT in jail.d -- fail2ban
+      # reads it from a specific path, see the image's own docs for the
+      # exact mount point if this default doesn't match crazymax/fail2ban's
+      # expected layout; verify before relying on this.
+      - ./fail2ban/jail.local/jail.local.snippet:/data/jail.local:ro
+      - fail2ban_data:/data
+
+volumes:
+  fail2ban_data:
+  # nginx_logs must be the SAME named volume your nginx service already
+  # writes /var/log/nginx to -- add this volume mount to your existing
+  # nginx service definition too if it doesn't already persist logs to a
+  # named volume (a container-local log directory that isn't a volume
+  # can't be read by a separate fail2ban container at all).
+  nginx_logs:

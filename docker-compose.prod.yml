@@ -1,0 +1,283 @@
+# docker-compose.yml
+# Full GoCorrectify platform — Postgres, Redis, Qdrant, Go server, Go gateway,
+# Python Celery worker, React frontend, and a one-shot mailer service.
+#
+# CHANGED from the original (see HITL-PATCH.md for the full reasoning on
+# each one):
+#   - redis, qdrant: removed `ports:` entirely -- these were previously
+#     published with no host-IP restriction AND no visible authentication,
+#     meaning anyone on the internet could connect with zero credentials.
+#     Only hitl-server/celery-worker need to reach them, which they
+#     already do over hitl-net by container name regardless of host
+#     publishing.
+#   - postgres: now bound to 127.0.0.1 only (was unrestricted) --
+#     admin access still works via `psql -h 127.0.0.1 -p 5435`, just not
+#     from outside this machine.
+#   - hitl-server, gateway, frontend, nginx: removed `ports:` entirely.
+#     gateway's own original comment already said "local dev only -- in
+#     production this stays behind Nginx"; this makes that true. nginx no
+#     longer owns 80/443 directly -- that's shared-infra's Caddy now (see
+#     shared-infra-server2/), which terminates TLS and forwards to nginx
+#     internally. Use hitl-nginx-simplified.conf (not the original
+#     nginx.conf) alongside this file -- the original still assumes it's
+#     doing its own TLS termination on 443, which no longer applies.
+#   - networks: hitl-net now has an explicit stable `name:` instead of
+#     Compose's auto-generated one, so shared-infra's Caddy has something
+#     reliable to attach to regardless of what folder this gets cloned into.
+
+services:
+
+  # ── Infrastructure ────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: hitl-postgres
+    environment:
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB:       hitl
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations:/app/migrations
+    ports:
+      # Localhost-only now -- admin access via `psql -h 127.0.0.1 -p 5435`
+      # or an SSH tunnel, never reachable from outside this machine. Also
+      # avoids the port collision with PetTalk's own postgres, which now
+      # uses 5436 -- see PETTALK-PATCH.md.
+      - "127.0.0.1:5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [hitl-net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: hitl-redis
+    # No ports: -- see the file header comment. hitl-server and
+    # celery-worker reach this at redis:6379 over hitl-net regardless.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [hitl-net]
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: hitl-qdrant
+    # No ports: -- same reasoning as redis above.
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks: [hitl-net]
+
+  # ── Go services ───────────────────────────────────────────────────────────
+
+  hitl-server:
+    build:
+      context: ./hitl-go
+      dockerfile: Dockerfile.server
+    container_name: hitl-server
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/hitl
+      REDIS_HOST:   redis
+      PORT:         "8000"
+      EXPORT_DIR:   /app/export
+      UPLOAD_DIR:   /app/uploads
+      SLA_HOURS:    "24"
+      JWT_SECRET:   ${JWT_SECRET:-change-me-in-production-256bit}
+      # Controls which upload pipeline Step 1 exposes — see
+      # GET /api/documents/config. false = OCR region-drawing (default,
+      # no LLM/API-key dependency). true = schema-based extraction via
+      # services/extractor.py, which needs GROQ_API set on celery-worker
+      # below to actually work.
+      USE_LLM: ${USE_LLM:-false}
+      OWNER_USERNAME: ${OWNER_USERNAME:-owner}
+      OWNER_PASSWORD: ${OWNER_PASSWORD:-owner@123}
+      # ── Payment (routers/payment.go, internal/payment) ──────────────────
+      # mock (default) needs no keys and always succeeds instantly — safe
+      # to leave as-is until you actually have Stripe/Razorpay credentials.
+      DB_DRIVER:              ${DB_DRIVER:-postgres}
+      PAYMENT_GATEWAY:        ${PAYMENT_GATEWAY:-mock}
+      STRIPE_SECRET_KEY:      ${STRIPE_SECRET_KEY:-}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET:  ${STRIPE_WEBHOOK_SECRET:-}
+      RAZORPAY_KEY_ID:        ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET:    ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      # ── Google OAuth (optional "Continue with Google" login) ────────────
+      GOOGLE_CLIENT_ID:     ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    volumes:
+      - ./export:/app/export
+      - ./uploads:/app/uploads
+    # No ports: -- reachable from nginx over hitl-net at hitl-server:8000.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [hitl-net]
+
+  gateway:
+    build:
+      context: ./hitl-go
+      dockerfile: Dockerfile.gateway
+    container_name: hitl-gateway
+    depends_on:
+      hitl-server: { condition: service_healthy }
+      redis:        { condition: service_healthy }
+    environment:
+      BACKEND_URL:  http://hitl-server:8000
+      JWT_SECRET:   ${JWT_SECRET:-change-me-in-production-256bit}
+      JWT_PUBLIC_KEY_PATH: /app/secrets/jwt_public.pem
+      REDIS_HOST:   redis
+      GATEWAY_PORT: "9000"
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://localhost}
+      EXPOSE_DOCS:  ${EXPOSE_DOCS:-false}
+    # No ports: -- your own original comment already said "local dev
+    # only -- in production this stays behind Nginx". Reachable from
+    # nginx over hitl-net at gateway:9000.
+    volumes:
+      - ./secrets/jwt_public.pem:/app/secrets/jwt_public.pem:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [hitl-net]
+
+  # ── Python Celery worker ─────────────────────────────────────────────────
+
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hitl-celery-worker
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+      qdrant:
+        condition: service_started
+    environment:
+      # SQLAlchemy 2.x rejects the bare "postgres://" scheme — must be
+      # "postgresql://" here. Go's pgx (hitl-server, above) accepts both.
+      # This difference is intentional, not a typo.
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/hitl
+      REDIS_HOST:   redis
+      EXPORT_DIR:   /app/export
+      SLA_HOURS:    "24"
+      DRIFT_THRESHOLD: "0.1"
+      # Required if USE_LLM=true on hitl-server — services/extractor.py,
+      # evaluator.py, table_tagger.py, and reextractor.py all call Groq.
+      # Not needed for the default OCR pipeline (USE_LLM=false).
+      USE_LLM:          ${USE_LLM:-false}
+      GROQ_API:          ${GROQ_API:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      QDRANT_HOST:  qdrant
+      QDRANT_PORT:  "6333"
+    volumes:
+      - ./export:/app/export
+      - ./uploads:/app/uploads
+    networks: [hitl-net]
+    restart: unless-stopped
+
+  # ── Nginx reverse proxy ───────────────────────────────────────────────────
+  # No longer the internet-facing TLS layer -- that's shared-infra's Caddy
+  # now (see shared-infra-server2/), which terminates HTTPS and forwards
+  # plain HTTP here over hitl-net. Not published to the host at all; only
+  # Caddy reaches it, by container name (hitl-nginx).
+  #
+  # IMPORTANT: use hitl-nginx-simplified.conf here, not the original
+  # nginx.conf -- the original still does its own TLS termination on 443
+  # with self-signed/Let's Encrypt certs, which no longer applies once
+  # Caddy owns that job. Update the volume mount below (or just overwrite
+  # nginx/nginx.conf with the simplified version) before deploying.
+  #
+  # Access the app through Caddy now, not directly: https://YOUR_HITL_DOMAIN
+
+  nginx:
+    build:
+      context:    ./nginx
+      dockerfile: Dockerfile
+    container_name: hitl-nginx
+    depends_on:
+      gateway:  { condition: service_healthy }
+      frontend: { condition: service_started }
+    # No ports: -- Caddy reaches this at hitl-nginx:80 over hitl-net.
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro   # use hitl-nginx-simplified.conf here
+      # TLS cert volumes removed -- Caddy handles certificates now, this
+      # container no longer terminates TLS itself, so it has no use for
+      # cert files or the Let's Encrypt ACME challenge path.
+    networks: [hitl-net]
+    restart: unless-stopped
+
+  # ── Frontend ──────────────────────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hitl-frontend
+    depends_on:
+      - gateway
+    environment:
+      VITE_GATEWAY_URL: http://gateway:9000
+    volumes:
+      - ./frontend/src:/app/src   # live-reload during dev
+    # No ports: -- nginx reaches this at frontend:5173 over hitl-net.
+    # See HITL-PATCH.md's "Production frontend serving" note: consider
+    # switching nginx to serve a static `frontend/dist/` build instead of
+    # proxying to the Vite dev server for real production traffic.
+    networks: [hitl-net]
+
+  authservice:
+    volumes:
+      - ./secrets/jwt_private.pem:/app/secrets/jwt_private.pem:ro
+    environment:
+      JWT_PRIVATE_KEY_PATH: /app/secrets/jwt_private.pem
+
+  # ── Mailer (one-shot — NEVER auto-starts, NEVER auto-repeats) ─────────────
+  # `profiles: ["manual"]` means: services WITHOUT a `profiles:` key always
+  # start on `docker compose up`; services WITH one only start if that
+  # profile is explicitly activated. "manual" is just a label we chose —
+  # it has no special meaning to Compose itself.
+  #
+  # Compose has NO built-in scheduler. This service does not run every N
+  # hours by itself under any configuration — that requires a host cron
+  # entry calling `docker compose run --rm mailer` on whatever interval
+  # you want. See DOCKER.md section 6 for full details, including what
+  # happens if you remove this profiles: line (it would start once per
+  # `docker compose up`, then exit — not repeat on a schedule).
+  #
+  # Run manually:
+  #   docker compose run --rm mailer
+  # (works without --profile manual — explicitly naming the service on
+  #  the command line runs it regardless of its profile)
+
+  mailer:
+    build:
+      context: ./mailer
+      dockerfile: Dockerfile
+    container_name: hitl-mailer
+    environment:
+      EXPORT_DIR: /app/export
+    volumes:
+      - ./export:/app/export
+    networks: [hitl-net]
+    profiles: ["manual"]   # excluded from `docker compose up` by default — see comment block above
+
+networks:
+  hitl-net:
+    name: hitl-net
+    driver: bridge
+
+volumes:
+  pgdata:
+  qdrant-data:

@@ -1,0 +1,18 @@
+# Add/merge this into /etc/fail2ban/jail.local (NOT jail.d/ -- this is the
+# global [DEFAULT] section fail2ban reads first; jail.d/nginx-auth-alert.local
+# from above inherits these values).
+#
+# These three settings are what actually make %(action_mwl)s send mail.
+# Without an MTA configured to accept mail on localhost:25, fail2ban will
+# still ban the IP and log the match -- the mail step just fails silently
+# into fail2ban's own log, which is the graceful-degradation behavior you
+# asked for.
+
+[DEFAULT]
+destemail = ops@yourdomain.com
+sender    = fail2ban@yourdomain.com
+# 'mail' = built-in mailutils client, works with any local MTA (postfix,
+# ssmtp, msmtp-mta configured as a sendmail replacement). If you're using
+# a transactional email API (SES, SendGrid, etc.) instead of a local MTA,
+# see the note below the compose snippet.
+mta       = mail

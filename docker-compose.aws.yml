@@ -1,0 +1,200 @@
+# docker-compose.aws.yml
+# take this file as reference for integrating aws setup in your project
+#
+# AWS deployment — replaces Docker-managed Postgres and Redis with
+# AWS RDS and ElastiCache. Run with:
+#   docker compose -f docker-compose.aws.yml up --build -d
+#
+# Prerequisites:
+#   - RDS PostgreSQL 16 endpoint reachable from this EC2 instance
+#   - ElastiCache Redis (cluster mode DISABLED) endpoint reachable from this EC2 instance
+#   - .env populated from .env.aws.example
+#   - EC2 security group allows outbound to RDS:5432 and ElastiCache:6379
+#   - RDS / ElastiCache security groups allow inbound from the EC2 security group
+
+services:
+
+  # ── Qdrant (no AWS managed equivalent — keep as container) ────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: hitl-qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage    # EBS volume persists this data
+    networks: [hitl-net]
+    restart: unless-stopped
+
+  # ── Go API server ─────────────────────────────────────────────────────────
+  hitl-server:
+    build:
+      context: ./hitl-go
+      dockerfile: Dockerfile.server
+    container_name: hitl-server
+    depends_on:
+      qdrant:
+        condition: service_started
+    environment:
+      # ── RDS connection (set in .env) ──────────────────────────────────────
+      DATABASE_URL:     ${DATABASE_URL}           # postgres://user:pass@rds-endpoint:5432/hitl
+      # ── ElastiCache connection (set in .env) ─────────────────────────────
+      REDIS_HOST:       ${REDIS_HOST}             # xxx.cache.amazonaws.com
+      PORT:             "8000"
+      EXPORT_DIR:       /app/export
+      UPLOAD_DIR:       /app/uploads
+      SLA_HOURS:        "24"
+      # Controls which upload pipeline Step 1 exposes on the frontend —
+      # see GET /api/documents/config. false = OCR region-drawing
+      # (default, no LLM/API-key dependency). true = schema-based
+      # extraction via services/extractor.py, which calls Groq — GROQ_API
+      # below must be set for this to actually work, not just USE_LLM=true.
+      USE_LLM:          ${USE_LLM:-false}
+      OWNER_USERNAME:   ${OWNER_USERNAME:-owner}
+      OWNER_PASSWORD:   ${OWNER_PASSWORD:-owner@123}
+      # ── Payment (routers/payment.go, internal/payment) ────────────────────
+      DB_DRIVER:              ${DB_DRIVER:-postgres}     # plan_transactions store: postgres | mysql
+      PAYMENT_GATEWAY:        ${PAYMENT_GATEWAY:-mock}   # mock | stripe | razorpay
+      STRIPE_SECRET_KEY:      ${STRIPE_SECRET_KEY:-}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET:  ${STRIPE_WEBHOOK_SECRET:-}
+      RAZORPAY_KEY_ID:        ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET:    ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      #  ────googleOAuthConfig ────────────────────
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+
+    volumes:
+      - ./export:/app/export                      # EBS-backed local dir
+      - ./uploads:/app/uploads                    # EBS-backed local dir
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [hitl-net]
+    restart: unless-stopped
+
+  # ── Go gateway ────────────────────────────────────────────────────────────
+  gateway:
+    build:
+      context: ./hitl-go
+      dockerfile: Dockerfile.gateway
+    container_name: hitl-gateway
+    depends_on:
+      hitl-server: { condition: service_healthy }
+    environment:
+      BACKEND_URL:    http://hitl-server:8000
+      JWT_SECRET:     ${JWT_SECRET}
+      REDIS_HOST:     ${REDIS_HOST}               # ElastiCache endpoint
+      GATEWAY_PORT:   "9000"
+      CORS_ORIGINS:   ${CORS_ORIGINS:-https://localhost}
+      EXPOSE_DOCS:    ${EXPOSE_DOCS:-false}
+    ports:
+      # Nginx is the sole public entry point on EC2 (ports 80/443).
+      # Do NOT publish 9000 on a production host — it bypasses Nginx's
+      # TLS, rate limiting, and gzip, and exposes the gateway directly
+      # to the internet if the EC2 security group allows it.
+      # Uncomment ONLY for temporary local debugging via SSH tunnel:
+      # - "9000:9000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [hitl-net]
+    restart: unless-stopped
+
+  # ── Python Celery worker ─────────────────────────────────────────────────
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hitl-celery-worker
+    depends_on:
+      qdrant:
+        condition: service_started
+    environment:
+      PYTHONPATH: /app
+      # SQLAlchemy needs postgresql:// (not postgres://) — built from
+      # discrete RDS credential parts so Go's DATABASE_URL (postgres://)
+      # and this postgresql:// string never have to share one env var.
+      DATABASE_URL:      postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:5432/${DB_NAME}
+      REDIS_HOST:        ${REDIS_HOST}            # ElastiCache endpoint
+      EXPORT_DIR:        /app/export
+      SLA_HOURS:         "24"
+      DRIFT_THRESHOLD:   "0.1"
+      # Required if USE_LLM=true on hitl-server — services/extractor.py,
+      # evaluator.py, table_tagger.py, and reextractor.py all call Groq
+      # (model: llama-3.3-70b-versatile) for the schema-based extraction
+      # pipeline. Not needed for the default OCR pipeline (USE_LLM=false).
+      USE_LLM:          ${USE_LLM:-false}
+      GROQ_API:          ${GROQ_API:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      QDRANT_HOST:       qdrant
+      QDRANT_PORT:       "6333"
+    volumes:
+      - ./services:/app/services 
+      - ./export:/app/export
+      - ./uploads:/app/uploads
+    networks: [hitl-net]
+    restart: unless-stopped
+
+  # ── Nginx reverse proxy ───────────────────────────────────────────────────
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: hitl-nginx
+    depends_on:
+      gateway:  { condition: service_healthy }
+      frontend: { condition: service_started }
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/certbot:/var/www/certbot:ro
+    networks: [hitl-net]
+    restart: unless-stopped
+
+  # ── Frontend ──────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hitl-frontend
+    depends_on:
+      - gateway
+    environment:
+      VITE_GATEWAY_URL: http://gateway:9000
+    volumes:
+      - ./frontend/src:/app/src
+    ports:
+      - "5173:5173"
+    networks: [hitl-net]
+    restart: unless-stopped
+
+  # ── Mailer (one-shot, manual trigger only) ────────────────────────────────
+  mailer:
+    build:
+      context: ./mailer
+      dockerfile: Dockerfile
+    container_name: hitl-mailer
+    environment:
+      EXPORT_DIR: /app/export
+    volumes:
+      - ./export:/app/export
+    networks: [hitl-net]
+    profiles: ["manual"]
+
+networks:
+  hitl-net:
+    driver: bridge
+
+volumes:
+  qdrant-data:    # stored on EBS, survives container restarts
+  # pgdata and redis volumes REMOVED — replaced by RDS and ElastiCache

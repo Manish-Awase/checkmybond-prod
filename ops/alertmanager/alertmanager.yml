@@ -1,0 +1,28 @@
+# ops/alertmanager/alertmanager.yml
+#
+# Emails the Prometheus rules in prometheus/rules/bondqi-alerts.yml.
+# Alertmanager does NOT read environment variables, so edit the values
+# marked CHANGE-ME directly (or mount a copy that isn't committed to git --
+# this file will contain an SMTP password).
+#
+# Brevo example is filled in. For SendGrid use:
+#   smarthost: smtp.sendgrid.net:587   auth_username: apikey   auth_password: <SG key>
+global:
+  smtp_smarthost: "smtp-relay.brevo.com:587"       # CHANGE-ME if not Brevo
+  smtp_from: "alerts@yourdomain.com"               # CHANGE-ME (verified sender)
+  smtp_auth_username: "CHANGE-ME-smtp-login"
+  smtp_auth_password: "CHANGE-ME-smtp-key"
+  smtp_require_tls: true
+
+route:
+  receiver: email-oncall
+  group_by: ["alertname"]
+  group_wait: 30s        # wait to bundle alerts that fire together
+  group_interval: 5m
+  repeat_interval: 4h    # re-remind if still firing
+
+receivers:
+  - name: email-oncall
+    email_configs:
+      - to: "you@yourdomain.com"                   # CHANGE-ME
+        send_resolved: true                        # also email when it recovers

@@ -1,0 +1,42 @@
+# /etc/fail2ban/jail.d/nginx-auth-alert.local
+#
+# Watches nginx access.log for 401/429 spikes on /api/auth/* (see
+# filter.d/nginx-auth.conf). Two thresholds intentionally, because 401 and
+# 429 mean different things:
+#
+#   - 401 spikes  = someone is actually guessing passwords (wrong creds
+#                   getting past the request-rate limit because they're
+#                   spread across time, or many different accounts).
+#   - 429 spikes  = nginx's own rate limiter is already kicking in hard --
+#                   i.e. a single IP is hammering /api/auth/login fast
+#                   enough to trip login_limit/auth_limit repeatedly.
+#
+# Both funnel into the same jail/filter for simplicity; maxretry below is
+# tuned assuming login_limit is 5r/m (burst 3) and auth_limit is 10r/m
+# (burst 5) from nginx.conf -- adjust if you change those.
+
+[nginx-auth-alert]
+enabled  = true
+filter   = nginx-auth
+backend  = auto
+
+# Path INSIDE the fail2ban container/host -- see docker-compose snippet
+# below for how this gets mounted from the nginx container.
+logpath  = /var/log/nginx/access.log
+
+# 15 matching lines (401s or 429s combined) within 5 minutes from the same
+# IP triggers the action. Loosen/tighten based on real traffic -- this is
+# deliberately above your nginx burst limits so it only fires on genuine
+# sustained abuse, not one legitimate user fat-fingering a password twice.
+maxretry = 15
+findtime = 5m
+
+# How long the IP stays banned at the firewall level once triggered.
+bantime  = 30m
+
+# %(action_mwl)s = ban the IP (iptables/nftables) + email with a relevant
+# excerpt of the matched log lines + whois info about the source IP.
+# fail2ban ALWAYS writes the match + ban to its own log
+# (/var/log/fail2ban.log) regardless of whether the mail step succeeds --
+# so "always log" is satisfied even before an MTA is configured.
+action   = %(action_mwl)s

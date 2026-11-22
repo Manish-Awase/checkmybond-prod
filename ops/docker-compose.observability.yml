@@ -1,0 +1,93 @@
+# ops/docker-compose.observability.yml
+#
+# Standalone Prometheus + Grafana stack. Doesn't include the BondQi
+# services themselves (hitl-server, gateway, worker, postgres, redis) —
+# those already have their own compose setup elsewhere in the repo, or
+# you run them on the host during development. This file exists so
+# Prometheus/Grafana can be started independently without disturbing
+# whatever is already running the app.
+#
+# Usage (Prometheus + Alertmanager only):
+#   docker compose -f ops/docker-compose.observability.yml up -d
+# Usage (also Grafana, when you want dashboards):
+#   docker compose -f ops/docker-compose.observability.yml --profile grafana up -d
+# Stop Grafana again without touching the others:
+#   docker compose -f ops/docker-compose.observability.yml stop grafana
+# NOTE: start the app compose first -- hitl-net must exist.
+#
+# Then:
+#   Prometheus:  http://localhost:9090
+#   Grafana:     http://localhost:3001  (admin / admin, change on first login)
+#
+# If the BondQi services are ALSO running as containers on a compose
+# network (rather than on the host), add this stack's services to that
+# same network and switch ops/prometheus/prometheus.yml to the
+# service-name targets documented at the bottom of that file, instead of
+# host.docker.internal.
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: bondqi-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "127.0.0.1:9090:9090"   # localhost only; reach it via SSH tunnel
+    extra_hosts:
+      # Lets the container resolve host.docker.internal even on Linux
+      # hosts, where Docker doesn't add it by default the way Docker
+      # Desktop does.
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default      # to reach alertmanager / grafana in this file
+      - hitl-net     # to reach hitl-server, gateway, celery-worker (app compose network)
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: bondqi-alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    ports:
+      - "127.0.0.1:9093:9093"   # localhost only
+
+  grafana:
+    # OPTIONAL: only starts when you ask for it with `--profile grafana`.
+    profiles: ["grafana"]
+    image: grafana/grafana:11.1.0
+    container_name: bondqi-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      # Set GRAFANA_ADMIN_PASSWORD in your shell / .env before `up`.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}   # set GRAFANA_ADMIN_PASSWORD in .env; port is localhost-only
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3001:3000"   # localhost only; put behind nginx+HTTPS or SSH tunnel
+
+networks:
+  hitl-net:
+    external: true
+    name: hitl-net   # created by the app's docker-compose.yml - start that first
+
+volumes:
+  alertmanager-data:
+  prometheus-data:
+  grafana-data:

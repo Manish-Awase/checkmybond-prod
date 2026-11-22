@@ -1,0 +1,42 @@
+# frontend/Dockerfile.prod
+# Production build — outputs static files that Nginx serves directly.
+# Vite dev server is NOT used in production.
+#
+# Two-stage:
+#   Stage 1 (builder): Node — runs `npm run build`, outputs dist/
+#   Stage 2 (server):  Nginx — serves dist/ as static files
+#
+# In docker-compose.yml, use this instead of Dockerfile for production:
+#   build:
+#     context: ./frontend
+#     dockerfile: Dockerfile.prod
+
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY package.json ./
+RUN npm install
+
+COPY . .
+
+# VITE_GATEWAY_URL is set at build time for production
+# Default empty string routes /api through Nginx → gateway
+ARG VITE_GATEWAY_URL=""
+ENV VITE_GATEWAY_URL=$VITE_GATEWAY_URL
+
+RUN npm run build
+
+# ── Production static server ──────────────────────────────────────────────────
+FROM nginx:1.25-alpine
+
+# Copy built files to Nginx's default serve directory
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# SPA routing — all unknown paths serve index.html (React Router handles them)
+RUN echo 'server { \
+    listen 80; \
+    root /usr/share/nginx/html; \
+    location / { try_files $uri $uri/ /index.html; } \
+}' > /etc/nginx/conf.d/default.conf
+
+EXPOSE 80

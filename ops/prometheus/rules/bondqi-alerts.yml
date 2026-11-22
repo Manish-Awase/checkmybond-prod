@@ -1,0 +1,145 @@
+# ops/prometheus/rules/bondqi-alerts.yml
+#
+# Prometheus/Alertmanager rules for the same conditions the in-app alert
+# engine (internal/alerting) watches over. The two are deliberately
+# redundant rather than one replacing the other:
+#
+#   - internal/alerting reads its OWN in-process rolling windows, not
+#     Prometheus, and emails alert_recipients directly from the Go
+#     process. It still works if Prometheus itself is down.
+#   - These rules fire through whatever Alertmanager receivers you
+#     configure (Slack, PagerDuty, etc.) and are what Grafana's alert
+#     list / alerting panels read.
+#
+# Thresholds are kept in sync with the seed data in
+# migrations/0004_alerting.sql by hand — there is no single source of
+# truth shared between Go and Prometheus's rule YAML, so if you tune a
+# threshold in the Alerts admin page, consider updating the matching
+# line here too.
+groups:
+  - name: bondqi-availability
+    rules:
+      # Prometheus itself can't scrape the target -> process is down or
+      # unreachable. Independent of the app's own health probes.
+      - alert: BondQiTargetDown
+        expr: up{job=~"hitl-server|gateway|worker"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.job }} is not responding to Prometheus scrapes"
+
+      - alert: BondQiDatabaseDown
+        expr: bondqi_db_up{service="hitl-server"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "BondQi database is unreachable"
+          description: "bondqi_db_up has been 0 for over a minute on {{ $labels.service }}."
+
+      - alert: BondQiRedisDown
+        expr: bondqi_redis_up{service="hitl-server"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "BondQi Redis/queue backend is unreachable"
+
+      - alert: BondQiWorkerDown
+        expr: bondqi_worker_up == 0
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "A Celery worker has gone down"
+
+  - name: bondqi-http
+    rules:
+      - alert: BondQiHighErrorRate
+        expr: |
+          sum(rate(bondqi_http_errors_total{service="hitl-server"}[5m]))
+          / sum(rate(bondqi_http_requests_total{service="hitl-server"}[5m])) * 100 > 5
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "API 5xx rate above 5% for 5 minutes"
+
+      - alert: BondQiHighLatencyP95
+        expr: |
+          histogram_quantile(0.95, sum(rate(bondqi_http_request_duration_seconds_bucket{service="hitl-server"}[5m])) by (le)) > 2
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "API p95 latency above 2s for 5 minutes"
+
+  - name: bondqi-pipeline
+    rules:
+      - alert: BondQiQueueDepthHigh
+        expr: bondqi_queue_depth > 200
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Extraction queue depth over 200 for 10 minutes"
+
+      - alert: BondQiSLABreaches
+        expr: increase(bondqi_sla_breaches_total[15m]) > 0
+        labels: { severity: critical }
+        annotations:
+          summary: "One or more extraction jobs missed their SLA deadline"
+
+      - alert: BondQiExtractionFailureRate
+        expr: |
+          sum(rate(bondqi_extraction_jobs_total{status="failed"}[15m]))
+          / sum(rate(bondqi_extraction_jobs_total[15m])) * 100 > 10
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Extraction failure rate above 10% over 15 minutes"
+
+  - name: bondqi-payments
+    rules:
+      - alert: BondQiPaymentFailureRate
+        expr: |
+          sum(rate(bondqi_payment_attempts_total{status="failed"}[15m]))
+          / sum(rate(bondqi_payment_attempts_total[15m])) * 100 > 15
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: "Payment failure rate above 15% over 15 minutes"
+
+  - name: bondqi-coupons
+    rules:
+      - alert: BondQiCouponAbuseSuspected
+        expr: sum(rate(bondqi_coupon_rejections_total{reason="already_used"}[5m])) * 60 > 20
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Unusually high rate of already-redeemed coupon attempts — possible sharing/abuse"
+
+  - name: bondqi-margin
+    rules:
+      # Real (not estimated) LLM $ cost per successful field extraction,
+      # compared against the cheapest per-field revenue in the current
+      # plan table (the annual plan's ~$0.208/field — see
+      # hitl-go/routers/payment.go's plans map). Firing at 50% of that
+      # floor leaves headroom before a model swap, a bigger prompt, or a
+      # retry-storm actually turns a purchase into a loss, and gives you
+      # a warning well before it would. Update the 0.104 threshold if the
+      # plan table changes.
+      - alert: BondQiLLMCostApproachingRevenueFloor
+        expr: |
+          sum(rate(bondqi_llm_cost_usd_total[1h]))
+          / sum(rate(bondqi_stage_duration_seconds_count{stage="extraction",step="llm_call"}[1h])) > 0.104
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "Average LLM cost per field extraction is over 50% of the cheapest plan's per-field revenue"
+
+  - name: bondqi-throughput
+    rules:
+      # Traffic disappeared. Written but harmless to leave on: it only
+      # fires when the rate is < 1 request/min for 15 min. Raise the
+      # "1" to ~half your quiet-hour rate once you've measured it.
+      - alert: BondQiTrafficDropped
+        expr: sum(rate(bondqi_http_requests_total{service="hitl-server"}[15m])) * 60 < 1
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "API request volume below 1/min for 15 minutes"

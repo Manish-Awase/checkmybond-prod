@@ -1,0 +1,345 @@
+{
+  "title": "BondQi Overview",
+  "uid": "bondqi-overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Service up",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "bondqi_db_up",
+          "legendFormat": "db"
+        },
+        {
+          "expr": "bondqi_redis_up",
+          "legendFormat": "redis"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "HTTP request rate",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 6,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(bondqi_http_requests_total[5m])) by (service)",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "HTTP error rate (%)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(bondqi_http_errors_total[5m])) by (service) / sum(rate(bondqi_http_requests_total[5m])) by (service) * 100",
+          "legendFormat": "{{service}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "HTTP p95 latency by route",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(bondqi_http_request_duration_seconds_bucket[5m])) by (le, route))",
+          "legendFormat": "{{route}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "DB query p95 latency",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(bondqi_db_query_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "DB pool utilization",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "bondqi_db_pool_utilization_ratio",
+          "legendFormat": "{{pool}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Extraction queue depth",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "bondqi_queue_depth",
+          "legendFormat": "queue depth"
+        },
+        {
+          "expr": "bondqi_review_queue_depth",
+          "legendFormat": "review queue"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "SLA breaches (rate)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "increase(bondqi_sla_breaches_total[15m])",
+          "legendFormat": "breaches / 15m"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Extraction job outcomes",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(bondqi_extraction_jobs_total[5m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "LLM call latency (p95, by model)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(bondqi_llm_call_duration_seconds_bucket[5m])) by (le, model))",
+          "legendFormat": "{{model}}"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Extraction confidence distribution",
+      "type": "heatmap",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(bondqi_extraction_confidence_bucket[15m])) by (le)",
+          "format": "heatmap",
+          "legendFormat": "{{le}}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Payment attempts",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 32
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(bondqi_payment_attempts_total[15m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Coupon redemptions & discount given",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 32
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(bondqi_coupon_redemptions_total{outcome=\"accepted\"}[15m])) * 60",
+          "legendFormat": "redemptions/min"
+        },
+        {
+          "expr": "sum(rate(bondqi_coupon_discount_amount_total[1h]))",
+          "legendFormat": "discount $/hr"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "Alerts firing",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 32
+      },
+      "targets": [
+        {
+          "expr": "bondqi_alerts_firing",
+          "legendFormat": "firing"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "Worker task duration (p95, by task)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(bondqi_worker_task_duration_seconds_bucket[5m])) by (le, task_name))",
+          "legendFormat": "{{task_name}}"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Goroutines / in-flight requests",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "targets": [
+        {
+          "expr": "bondqi_goroutines",
+          "legendFormat": "goroutines"
+        },
+        {
+          "expr": "sum(bondqi_http_in_flight) by (service)",
+          "legendFormat": "{{service}} in-flight"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "title": "LLM cost per field vs. cheapest plan revenue ($/field)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(bondqi_llm_cost_usd_total[1h])) / sum(rate(bondqi_stage_duration_seconds_count{stage=\"extraction\",step=\"llm_call\"}[1h]))",
+          "legendFormat": "actual $/field"
+        },
+        {
+          "expr": "0.208",
+          "legendFormat": "annual plan revenue/field"
+        },
+        {
+          "expr": "0.104",
+          "legendFormat": "alert threshold (50%)"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "title": "LLM cost by model ($/hr)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(bondqi_llm_cost_usd_total[1h])) by (model)",
+          "legendFormat": "{{model}}"
+        }
+      ]
+    }
+  ]
+}

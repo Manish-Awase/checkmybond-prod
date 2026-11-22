@@ -1,0 +1,46 @@
+# backend/requirements.txt
+# Python worker dependencies only.
+# No FastAPI, no uvicorn — HTTP is handled by the Go server.
+
+# ── Database ──────────────────────────────────────────────────────────────────
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+
+# ── Task queue ────────────────────────────────────────────────────────────────
+celery[redis]>=5.4.0
+redis>=5.0.0
+
+# ── ML / LLM ──────────────────────────────────────────────────────────────────
+# groq is the default provider (LLM_PROVIDER=groq, or unset). anthropic is
+# already required by services/table_tagger.py history and kept installed.
+# openai / google-generativeai are OPTIONAL -- services/llm_client.py only
+# imports them lazily, at the moment LLM_PROVIDER is actually set to
+# "openai" or "gemini". Uncomment whichever you plan to use; leaving them
+# out keeps the image/sidecar smaller when you're Groq-only.
+anthropic>=0.28.0
+groq>=0.9.0
+# openai>=1.40.0                  # needed only if LLM_PROVIDER=openai
+# google-generativeai>=0.7.0      # needed only if LLM_PROVIDER=gemini
+
+# ── PDF parsing ───────────────────────────────────────────────────────────────
+pdfplumber>=0.11.0
+pytesseract>=0.3.10
+Pillow>=10.0.0
+
+# ── Vector store ──────────────────────────────────────────────────────────────
+# NOTE: sentence-transformers (and its torch dependency) is installed
+# separately in the Dockerfile, in its own cached layer, BEFORE this file
+# is even copied in. Do not re-list it here — that would just cause pip
+# to redundantly re-resolve it on every requirements.txt change.
+qdrant-client>=1.9.0
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+pydantic>=2.0.0          # services/schema_service.py — FieldDefinition/SchemaDefinition models
+
+# ── PDF correction export ──────────────────────────────────────────────────────
+PyMuPDF>=1.24.0          # fitz — used by apply_correction_to_pdf to edit PDF pages
+openpyxl>=3.1.0          # corrections.xlsx export
+
+# ── Observability ────────────────────────────────────────────────────────────
+prometheus-client==0.20.0

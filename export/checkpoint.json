@@ -1,0 +1,205 @@
+{
+  "timestamp": "2026-08-03T10:23:31.100822",
+  "incomplete_jobs": [
+    {
+      "extraction_id": "87153298-4a1c-4cd0-90c9-2c23bc0cf239",
+      "status": "processing",
+      "schema_id": "schema_9773201b22a60b4b",
+      "pdf_path": "/app/uploads/8037a26b-e13f-4fad-ba94-a9753e0fd2a7_income-statement.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-07-25 06:49:54.447156"
+    },
+    {
+      "extraction_id": "ede0e118-6ddd-4853-b354-8140cf73807c",
+      "status": "processing",
+      "schema_id": "schema_88682e9cc9d386e1",
+      "pdf_path": "/app/uploads/ca2d6fd0-617e-44a5-90ef-08e96c0a5abe_income-statement.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-07-25 06:52:54.873058"
+    },
+    {
+      "extraction_id": "971ece06-d6e6-4597-9cb1-7e160bfe63f5",
+      "status": "processing",
+      "schema_id": "schema_2ac9e9d68b20578a",
+      "pdf_path": "/app/uploads/a91493cb-71a0-462c-9edd-6869a941413b_Sample-Accounting-Income-Statement-PDF-File.pdf",
+      "doc_hash": "8d1416a97832ea75ba5aad839c5e43cf6f06918529982c225b436a2b2e60c08c",
+      "sla_deadline": "2026-07-25 19:32:53.363652"
+    },
+    {
+      "extraction_id": "09eeab0c-5c13-4096-ac91-e584eb0ecf5e",
+      "status": "processing",
+      "schema_id": "schema_8a03d4e758080f3e",
+      "pdf_path": "/app/uploads/149862ec-2465-4f20-90fe-fa435926a9c0_income-statement.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-07-25 07:08:06.794601"
+    },
+    {
+      "extraction_id": "28aa8f31-c4ac-466c-961a-8e4f9a78051a",
+      "status": "processing",
+      "schema_id": "schema_e909cf9fcc844343",
+      "pdf_path": "/app/uploads/739be86e-961a-4145-bec0-802c39d24fb8_income-statement.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-07-25 19:32:16.302843"
+    },
+    {
+      "extraction_id": "9601fbb8-b7ef-4677-9260-f07637bc284a",
+      "status": "processing",
+      "schema_id": "schema_ecf8ade8449449b2",
+      "pdf_path": "/app/uploads/659b68e7-400b-425e-840d-588a28c75dbb_income-statement.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-07-25 19:33:27.583995"
+    },
+    {
+      "extraction_id": "320c8cc7-ede5-4802-8db5-a77b7c2b44d1",
+      "status": "processing",
+      "schema_id": "schema_73f9c3bc045607a9",
+      "pdf_path": "/app/uploads/a5dabac4-45a4-454d-bda7-4bba7e73b839_income-statement.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-07-26 12:13:22.410740"
+    },
+    {
+      "extraction_id": "4da438c9-bbd0-4528-9fda-6bc36606764f",
+      "status": "processing",
+      "schema_id": "schema_9573754cabcdaee6",
+      "pdf_path": "/app/uploads/a8f2ac04-3d50-40ec-8ec2-3bad51b75f9e_income-statement - Copy.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-07-26 20:46:52.882799"
+    },
+    {
+      "extraction_id": "fd77c606-5058-4d6d-b7fb-749c2eda769b",
+      "status": "processing",
+      "schema_id": "schema_004de5809064ed3c",
+      "pdf_path": "/app/uploads/33e5ce44-fec2-4b7b-a7ef-b438f4ad2c9f_income-statement.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-07-26 20:46:08.562363"
+    },
+    {
+      "extraction_id": "68f2535d-ae45-4263-9870-689afb679401",
+      "status": "processing",
+      "schema_id": "schema_b2069593f2a3f0ff",
+      "pdf_path": "/app/uploads/ff331c91-5245-420c-bf96-3e7973fa9177_income-statement - Copy.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-07-26 20:51:04.983822"
+    },
+    {
+      "extraction_id": "49144a21-593e-4e81-9753-852ce2fe4df6",
+      "status": "processing",
+      "schema_id": "schema_b201191aefcc9712",
+      "pdf_path": "/app/uploads/9f1187c0-6317-472b-bd76-5cdc4a6fb55d_income-statement - Copy.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-07-26 20:55:56.079034"
+    },
+    {
+      "extraction_id": "5212a0e4-eb69-4fcf-b571-427261a10b24",
+      "status": "processing",
+      "schema_id": "schema_abe28a9ee3149db1",
+      "pdf_path": "/app/uploads/308a627b-2f15-4f6a-8ab9-4857d6517c17_income-statement.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-07-26 20:59:56.540516"
+    },
+    {
+      "extraction_id": "b35e9a44-9b7f-4718-87e8-0258f7688079",
+      "status": "processing",
+      "schema_id": "schema_43867dfa91702537",
+      "pdf_path": "/app/uploads/38da1d4c-bdce-4ead-b774-88a82e204369_income-statement.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-07-27 05:12:44.863629"
+    },
+    {
+      "extraction_id": "227ffdd5-9e92-45fe-906a-b241117e714e",
+      "status": "pending",
+      "schema_id": "schema_0efd512ffc6b8ca6",
+      "pdf_path": "/app/uploads/7d034ef0-0bf6-4f40-b68c-c05e50925c08_income-statement.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-07-30 14:06:27.229206"
+    },
+    {
+      "extraction_id": "c59f41c0-151f-43b3-b1b7-ee646e4b2c52",
+      "status": "pending",
+      "schema_id": "schema_e538d7d29d21d9d9",
+      "pdf_path": "uploads\\1b2b9d0d-56d0-49a4-bc1a-40de6c3153bc_income-statement.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-08-01 20:15:19.077298"
+    },
+    {
+      "extraction_id": "53adf13c-3e11-4d92-91c2-b3b3d6c01dbc",
+      "status": "pending",
+      "schema_id": "schema_5ef736e312ba1251",
+      "pdf_path": "/app/uploads/e9639d0b-a3f2-48e6-b747-5e81f60e9b06_income-statement - Copy.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-08-02 18:21:21.444866"
+    },
+    {
+      "extraction_id": "b3f3b199-d671-46d1-980d-9955e8d68f11",
+      "status": "pending",
+      "schema_id": "schema_148efdc44df63167",
+      "pdf_path": "/app/uploads/b95359d8-dd95-4843-8602-04218c69f901_income-statement - Copy.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-08-03 06:36:12.849636"
+    },
+    {
+      "extraction_id": "48f49e3e-0edc-4759-b5fb-3d70fa20c0bd",
+      "status": "pending",
+      "schema_id": "schema_f7bf1b9fcd63403a",
+      "pdf_path": "/app/uploads/6c0a071c-410a-4a1b-b759-cfee8dfde486_income-statement - Copy.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-08-02 19:17:06.387117"
+    },
+    {
+      "extraction_id": "96c9b65f-dd9a-49e5-96e7-0fda86e59295",
+      "status": "pending",
+      "schema_id": "schema_74a7819c4429ea60",
+      "pdf_path": "/app/uploads/fdbf0b79-af11-49b8-a07d-c220dd5fe898_income-statement - Copy.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-08-03 09:02:44.408334"
+    },
+    {
+      "extraction_id": "22a766a7-fa53-4d82-9f11-be84de98117f",
+      "status": "pending",
+      "schema_id": "schema_4d34945cad283ed9",
+      "pdf_path": "/app/uploads/05272e5a-f5f6-4eb5-bb30-476e33663039_income-statement - Copy.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-08-03 06:33:54.099200"
+    },
+    {
+      "extraction_id": "dbb41140-7afe-460e-b8eb-ec71b3b8bbd4",
+      "status": "pending",
+      "schema_id": "schema_0481236b0c956dc4",
+      "pdf_path": "/app/uploads/5b81ce80-0597-4450-ac3c-597aed23386f_income-statement - Copy.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-08-03 08:56:28.772410"
+    },
+    {
+      "extraction_id": "fef29afd-74ac-4179-b6d2-1faca4494b0b",
+      "status": "pending",
+      "schema_id": "schema_0a8a58e3a453b565",
+      "pdf_path": "/app/uploads/492c330e-a4a3-4a59-9c64-2846ece25c32_income-statement - Copy.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-08-02 20:26:26.489132"
+    },
+    {
+      "extraction_id": "4193fda4-ffad-49ee-b139-34e7617f65f6",
+      "status": "pending",
+      "schema_id": "schema_8a31678f0dfdcc4c",
+      "pdf_path": "/app/uploads/6a86ec9a-f10b-4d98-83b7-bbb9b200beff_income-statement - Copy.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-08-03 10:15:40.944235"
+    },
+    {
+      "extraction_id": "68dc9688-c54d-4d3f-bbd5-494c23087de1",
+      "status": "pending",
+      "schema_id": "schema_f5033a94c08df15d",
+      "pdf_path": "/app/uploads/da627577-2293-42dd-8f44-48db3e036e7a_income-statement - Copy.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-08-04 10:02:39.301922"
+    },
+    {
+      "extraction_id": "2af747be-968e-4354-b949-28f6d90be6a3",
+      "status": "pending",
+      "schema_id": "schema_36cfa76d316fe3b7",
+      "pdf_path": "/app/uploads/f512ee02-b51f-4027-8659-569a15ff7218_income-statement - Copy.pdf",
+      "doc_hash": "64fdccab66123b1c49f7991b42688accc31e9e36f80de404478b9db8ec480df8",
+      "sla_deadline": "2026-08-04 10:14:19.950973"
+    }
+  ]
+}
