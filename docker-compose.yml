@@ -7,21 +7,21 @@
 #   - redis, qdrant: removed `ports:` entirely -- these were previously
 #     published with no host-IP restriction AND no visible authentication,
 #     meaning anyone on the internet could connect with zero credentials.
-#     Only hitl-server/celery-worker need to reach them, which they
-#     already do over hitl-net by container name regardless of host
+#     Only cmb-server/celery-worker need to reach them, which they
+#     already do over cmb-net by container name regardless of host
 #     publishing.
 #   - postgres: now bound to 127.0.0.1 only (was unrestricted) --
 #     admin access still works via `psql -h 127.0.0.1 -p 5435`, just not
 #     from outside this machine.
-#   - hitl-server, gateway, frontend, nginx: removed `ports:` entirely.
+#   - cmb-server, gateway, frontend, nginx: removed `ports:` entirely.
 #     gateway's own original comment already said "local dev only -- in
 #     production this stays behind Nginx"; this makes that true. nginx no
 #     longer owns 80/443 directly -- that's shared-infra's Caddy now (see
 #     shared-infra-server2/), which terminates TLS and forwards to nginx
-#     internally. Use hitl-nginx-simplified.conf (not the original
+#     internally. Use cmb-nginx-simplified.conf (not the original
 #     nginx.conf) alongside this file -- the original still assumes it's
 #     doing its own TLS termination on 443, which no longer applies.
-#   - networks: hitl-net now has an explicit stable `name:` instead of
+#   - networks: cmb-net now has an explicit stable `name:` instead of
 #     Compose's auto-generated one, so shared-infra's Caddy has something
 #     reliable to attach to regardless of what folder this gets cloned into.
 
@@ -31,11 +31,11 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    container_name: hitl-postgres
+    container_name: cmb-postgres
     environment:
       POSTGRES_USER:     postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB:       hitl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB:       cmb
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./migrations:/app/migrations
@@ -50,40 +50,40 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    networks: [hitl-net]
+    networks: [cmb-net]
 
   redis:
     image: redis:7-alpine
-    container_name: hitl-redis
-    # No ports: -- see the file header comment. hitl-server and
-    # celery-worker reach this at redis:6379 over hitl-net regardless.
+    container_name: cmb-redis
+    # No ports: -- see the file header comment. cmb-server and
+    # celery-worker reach this at redis:6379 over cmb-net regardless.
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
-    networks: [hitl-net]
+    networks: [cmb-net]
 
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: hitl-qdrant
+    container_name: cmb-qdrant
     # No ports: -- same reasoning as redis above.
     volumes:
       - qdrant-data:/qdrant/storage
-    networks: [hitl-net]
+    networks: [cmb-net]
 
   # ── Go services ───────────────────────────────────────────────────────────
 
-  hitl-server:
+  cmb-server:
     build:
       context: ./hitl-go
       dockerfile: Dockerfile.server
-    container_name: hitl-server
+    container_name: cmb-server
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
     environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/hitl
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/cmb
       REDIS_HOST:   redis
       PORT:         "8000"
       EXPORT_DIR:   /app/export
@@ -115,24 +115,24 @@ services:
     volumes:
       - ./export:/app/export
       - ./uploads:/app/uploads
-    # No ports: -- reachable from nginx over hitl-net at hitl-server:8000.
+    # No ports: -- reachable from nginx over cmb-net at cmb-server:8000.
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks: [hitl-net]
+    networks: [cmb-net]
 
   gateway:
     build:
       context: ./hitl-go
       dockerfile: Dockerfile.gateway
-    container_name: hitl-gateway
+    container_name: cmb-gateway
     depends_on:
-      hitl-server: { condition: service_healthy }
+      cmb-server: { condition: service_healthy }
       redis:        { condition: service_healthy }
     environment:
-      BACKEND_URL:  http://hitl-server:8000
+      BACKEND_URL:  http://cmb-server:8000
       JWT_SECRET:   ${JWT_SECRET:-change-me-in-production-256bit}
       JWT_PUBLIC_KEY_PATH: /app/secrets/jwt_public.pem
       REDIS_HOST:   redis
@@ -141,7 +141,7 @@ services:
       EXPOSE_DOCS:  ${EXPOSE_DOCS:-false}
     # No ports: -- your own original comment already said "local dev
     # only -- in production this stays behind Nginx". Reachable from
-    # nginx over hitl-net at gateway:9000.
+    # nginx over cmb-net at gateway:9000.
     volumes:
       - ./secrets/jwt_public.pem:/app/secrets/jwt_public.pem:ro
     healthcheck:
@@ -149,7 +149,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks: [hitl-net]
+    networks: [cmb-net]
 
   # ── Python Celery worker ─────────────────────────────────────────────────
 
@@ -157,7 +157,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: hitl-celery-worker
+    container_name: cmb-celery-worker
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
@@ -165,15 +165,15 @@ services:
         condition: service_started
     environment:
       # SQLAlchemy 2.x rejects the bare "postgres://" scheme — must be
-      # "postgresql://" here. Go's pgx (hitl-server, above) accepts both.
+      # "postgresql://" here. Go's pgx (cmb-server, above) accepts both.
       # This difference is intentional, not a typo.
       PYTHONPATH: /app
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/hitl
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/cmb
       REDIS_HOST:   redis
       EXPORT_DIR:   /app/export
       SLA_HOURS:    "24"
       DRIFT_THRESHOLD: "0.1"
-      # Required if USE_LLM=true on hitl-server — services/extractor.py,
+      # Required if USE_LLM=true on cmb-server — services/extractor.py,
       # evaluator.py, table_tagger.py, and reextractor.py all call Groq.
       # Not needed for the default OCR pipeline (USE_LLM=false).
       USE_LLM:          ${USE_LLM:-false}
@@ -184,38 +184,38 @@ services:
     volumes:
       - ./export:/app/export
       - ./uploads:/app/uploads
-    networks: [hitl-net]
+    networks: [cmb-net]
     restart: unless-stopped
 
   # ── Nginx reverse proxy ───────────────────────────────────────────────────
   # No longer the internet-facing TLS layer -- that's shared-infra's Caddy
   # now (see shared-infra-server2/), which terminates HTTPS and forwards
-  # plain HTTP here over hitl-net. Not published to the host at all; only
-  # Caddy reaches it, by container name (hitl-nginx).
+  # plain HTTP here over cmb-net. Not published to the host at all; only
+  # Caddy reaches it, by container name (cmb-nginx).
   #
-  # IMPORTANT: use hitl-nginx-simplified.conf here, not the original
+  # IMPORTANT: use cmb-nginx-simplified.conf here, not the original
   # nginx.conf -- the original still does its own TLS termination on 443
   # with self-signed/Let's Encrypt certs, which no longer applies once
   # Caddy owns that job. Update the volume mount below (or just overwrite
   # nginx/nginx.conf with the simplified version) before deploying.
   #
-  # Access the app through Caddy now, not directly: https://YOUR_HITL_DOMAIN
+  # Access the app through Caddy now, not directly: https://YOUR_cmb_DOMAIN
 
   nginx:
     build:
       context:    ./nginx
       dockerfile: Dockerfile
-    container_name: hitl-nginx
+    container_name: cmb-nginx
     depends_on:
       gateway:  { condition: service_healthy }
       frontend: { condition: service_started }
-    # No ports: -- Caddy reaches this at hitl-nginx:80 over hitl-net.
+    # No ports: -- Caddy reaches this at cmb-nginx:80 over cmb-net.
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro   # use hitl-nginx-simplified.conf here
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro   # use cmb-nginx-simplified.conf here
       # TLS cert volumes removed -- Caddy handles certificates now, this
       # container no longer terminates TLS itself, so it has no use for
       # cert files or the Let's Encrypt ACME challenge path.
-    networks: [hitl-net]
+    networks: [cmb-net]
     restart: unless-stopped
 
   # ── Frontend ──────────────────────────────────────────────────────────────
@@ -224,18 +224,18 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: hitl-frontend
+    container_name: cmb-frontend
     depends_on:
       - gateway
     environment:
       VITE_GATEWAY_URL: http://gateway:9000
     volumes:
       - ./frontend/src:/app/src   # live-reload during dev
-    # No ports: -- nginx reaches this at frontend:5173 over hitl-net.
-    # See HITL-PATCH.md's "Production frontend serving" note: consider
+    # No ports: -- nginx reaches this at frontend:5173 over cmb-net.
+    # See cmb-PATCH.md's "Production frontend serving" note: consider
     # switching nginx to serve a static `frontend/dist/` build instead of
     # proxying to the Vite dev server for real production traffic.
-    networks: [hitl-net]
+    networks: [cmb-net]
 
   authservice:
     volumes:
@@ -265,17 +265,17 @@ services:
     build:
       context: ./mailer
       dockerfile: Dockerfile
-    container_name: hitl-mailer
+    container_name: cmb-mailer
     environment:
       EXPORT_DIR: /app/export
     volumes:
       - ./export:/app/export
-    networks: [hitl-net]
+    networks: [cmb-net]
     profiles: ["manual"]   # excluded from `docker compose up` by default — see comment block above
 
 networks:
-  hitl-net:
-    name: hitl-net
+  cmb-net:
+    name: cmb-net
     driver: bridge
 
 volumes:
