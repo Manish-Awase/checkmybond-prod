@@ -9,7 +9,7 @@
 #   smarthost: smtp.sendgrid.net:587   auth_username: apikey   auth_password: <SG key>
 global:
   smtp_smarthost: "smtp-relay.brevo.com:587"       # CHANGE-ME if not Brevo
-  smtp_from: "alerts@yourdomain.com"               # CHANGE-ME (verified sender)
+  smtp_from: "alerts@pettalk.fyi"               # CHANGE-ME (verified sender)
   smtp_auth_username: "CHANGE-ME-smtp-login"
   smtp_auth_password: "CHANGE-ME-smtp-key"
   smtp_require_tls: true
@@ -24,5 +24,5 @@ route:
 receivers:
   - name: email-oncall
     email_configs:
-      - to: "you@yourdomain.com"                   # CHANGE-ME
+      - to: "pettalk.fyi"                   # CHANGE-ME
         send_resolved: true                        # also email when it recovers

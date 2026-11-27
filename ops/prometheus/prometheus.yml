@@ -4,7 +4,7 @@
 # that expose /metrics: the API server, the edge gateway, and however
 # many Celery worker replicas you run (each on its own METRICS_PORT).
 #
-# Targets use service names on the app's `hitl-net` Docker network
+# Targets use service names on the app's `cmb-net` Docker network
 # (Prometheus is attached to it in docker-compose.observability.yml).
 # If you ever run the app processes directly on the host instead, switch
 # them back to host.docker.internal:<port>.
@@ -24,11 +24,11 @@ alerting:
         - targets: ["alertmanager:9093"]
 
 scrape_configs:
-  - job_name: hitl-server
+  - job_name: cmb-server
     metrics_path: /metrics
     static_configs:
-      - targets: ["hitl-server:8000"]
-        labels: { service: hitl-server }
+      - targets: ["cmb-server:8000"]
+        labels: { service: cmb-server }
     # Uncomment and set if METRICS_TOKEN is set on the server:
     # bearer_token: "replace-me"
 
@@ -53,10 +53,10 @@ scrape_configs:
 # ── If using docker-compose.observability.yml instead ───────────────────────
 # Replace the static_configs above with:
 #
-#   - job_name: hitl-server
+#   - job_name: cmb-server
 #     static_configs:
-#       - targets: ["hitl-server:8000"]
-#         labels: { service: hitl-server }
+#       - targets: ["cmb-server:8000"]
+#         labels: { service: cmb-server }
 #   - job_name: gateway
 #     static_configs:
 #       - targets: ["gateway:9000"]
